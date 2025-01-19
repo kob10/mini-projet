@@ -1,0 +1,136 @@
+* {
+  box-sizing: border-box; /* Include padding and border in element's total width and height */
+}
+.summary-container {
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  max-width: 600px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.summary-container h2 {
+  margin-bottom: 15px;
+  color: #333;
+  text-align: center;
+}
+
+.summary-container ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.summary-container li {
+  margin: 10px 0;
+  font-size: 16px;
+  color: #555;
+}
+
+
+/* Panel Container */
+.panel-container {
+  width: 100%; /* Take full width */
+  height: 100vh; /* Take full height of the viewport */
+  margin: 0; /* Remove margin */
+  padding: 20px; /* Padding inside the container */
+  background-color: #f9f9f9; /* Match your light background */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  overflow: auto; /* Add this to allow scrolling if content overflows */
+}
+.btn-delete-note {
+  padding: 10px 20px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-delete-note:hover {
+  background-color: #d32f2f;
+}
+  
+  /* Header */
+  .panel-header {
+    text-align: center;
+    font-size: 1.8em;
+    color: var(--text-color); /* Use your CSS variable or static color */
+    margin-bottom: 20px;
+  }
+  
+ /* Filters Section */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 20px; /* Ensure there's space below the filters */
+}
+
+/* Filter Input */
+.filter-input {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  width: 200px; /* Adjust width as needed */
+}
+  
+  /* Table Styles */
+  .table-style {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+  
+  .table-style th,
+  .table-style td {
+    padding: 12px;
+    text-align: left;
+    border: 1px solid #ddd;
+  }
+  
+  .table-style th {
+    background-color: #4CAF50;
+    color: white;
+  }
+  
+  .table-style tr:nth-child(even) {
+    background-color: #f2f2f2;
+  }
+  
+  /* No Logs Message */
+  .no-logs {
+    text-align: center;
+    color: #888;
+    font-size: 1.2em;
+  }
+  
+  /* Button Styles */
+  .button-group {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  
+  .btn-clear,
+  .btn-home {
+    padding: 10px 20px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .btn-clear:hover {
+    background-color: #d32f2f;
+  }
+  
+  .btn-home:hover {
+    background-color: #1976d2;
+  }
+  
