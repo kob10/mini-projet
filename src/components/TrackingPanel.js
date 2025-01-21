@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { clearLogs } from '../store/trackingReducer';
+import axios from 'axios';
+import { addLog, updateLog } from '../store/trackingReducer';
 import { useNavigate } from 'react-router-dom';
 import './CSS/TrackingPanel.css';
 
@@ -10,35 +11,112 @@ function TrackingPanel() {
   const navigate = useNavigate();
 
   const [filterUser, setFilterUser] = useState('');
-  const [filterAction, setFilterAction] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [clearedLogs, setClearedLogs] = useState([]);
-  
-  const [userNotes, setUserNotes] = useState(() => {
-    const savedNotes = localStorage.getItem('trackingUserNotes');
-    return savedNotes ? JSON.parse(savedNotes) : {};
+  const [userNotes, setUserNotes] = useState({});
+  const [favorites, setFavorites] = useState(() => {
+    // Récupérer les favoris depuis localStorage
+    const savedFavorites = localStorage.getItem('trackingFavorites');
+    return savedFavorites ? JSON.parse(savedFavorites) : [];
   });
 
   useEffect(() => {
-    localStorage.setItem('trackingUserNotes', JSON.stringify(userNotes));
-  }, [userNotes]);
+    fetchLogs();
+  }, []);
 
-  const getLogId = (log, index) => {
-    return log.id || `${log.user}-${log.timestamp}-${index}`;
-  };
+  useEffect(() => {
+    // Sauvegarder les favoris dans localStorage
+    localStorage.setItem('trackingFavorites', JSON.stringify(favorites));
+  }, [favorites]);
 
-  const handleClearLogs = () => {
-    if (window.confirm('Are you sure you want to clear all logs?')) {
-      setClearedLogs(logs);
-      dispatch(clearLogs());
+  const fetchLogs = async () => {
+    try {
+      const response = await axios.get('https://670ed5b73e7151861655eaa3.mockapi.io/Stagiaire');
+      const formattedLogs = response.data.map(log => ({
+        ...log,
+        noteHistory: log.noteHistory || []
+      }));
+      dispatch(addLog(formattedLogs));
+
+      // Initialiser les notes locales à partir des logs de l'API
+      const notes = {};
+      formattedLogs.forEach(log => {
+        if (log.note) {
+          notes[log.nom] = log.note;
+        }
+      });
+      setUserNotes(notes);
+    } catch (err) {
+      console.error('Erreur lors du chargement des logs :', err);
     }
   };
 
-  const handleUndoClear = () => {
-    dispatch({ type: 'SET_LOGS', payload: clearedLogs });
-    setClearedLogs([]);
+  const handleAddNote = async (log) => {
+    const note = prompt(`Entrez votre note pour ${log.nom}:`);
+    if (note) {
+      try {
+        const actionText = log.note ? 'Note modifiée' : 'Note ajoutée';
+        const updatedLog = {
+          ...log,
+          note,
+          action: actionText, // Mettre à jour le champ action
+          timestamp: new Date().toISOString(), // Mettre à jour le timestamp
+          noteHistory: [...(log.noteHistory || []), {
+            content: note,
+            modifiedAt: new Date().toISOString(),
+          }],
+          lastModified: new Date().toISOString(),
+        };
+
+        // Mettre à jour l'API
+        await axios.put(`https://670ed5b73e7151861655eaa3.mockapi.io/Stagiaire/${log.id}`, updatedLog);
+
+        // Mettre à jour le state local
+        setUserNotes((prevNotes) => ({
+          ...prevNotes,
+          [log.nom]: note,
+        }));
+
+        // Mettre à jour Redux
+        dispatch(updateLog(updatedLog));
+      } catch (err) {
+        console.error('Erreur lors de la mise à jour de la note :', err);
+      }
+    }
+  };
+
+  const handleDeleteNote = async (log) => {
+    if (window.confirm('Voulez-vous vraiment supprimer cette note ?')) {
+      try {
+        const updatedLog = {
+          ...log,
+          note: '',
+          action: 'Note supprimée', // Mettre à jour le champ action
+          timestamp: new Date().toISOString(), // Mettre à jour le timestamp
+          noteHistory: [...(log.noteHistory || []), {
+            content: 'Note supprimée',
+            modifiedAt: new Date().toISOString(),
+          }],
+          lastModified: new Date().toISOString(),
+        };
+
+        // Mettre à jour l'API
+        await axios.put(`https://670ed5b73e7151861655eaa3.mockapi.io/Stagiaire/${log.id}`, updatedLog);
+
+        // Mettre à jour le state local
+        setUserNotes((prevNotes) => {
+          const updatedNotes = { ...prevNotes };
+          delete updatedNotes[log.nom];
+          return updatedNotes;
+        });
+
+        // Mettre à jour Redux
+        dispatch(updateLog(updatedLog));
+      } catch (err) {
+        console.error('Erreur lors de la suppression de la note :', err);
+      }
+    }
   };
 
   const handleGoHome = () => {
@@ -49,10 +127,10 @@ function TrackingPanel() {
     const csvContent = [
       ['User', 'Action', 'Timestamp', 'Note'],
       ...logs.map((log) => [
-        log.user,
+        log.nom,
         log.action,
         new Date(log.timestamp).toLocaleString(),
-        userNotes[log.user] || 'No Note',
+        log.note || 'No Note',
       ]),
     ]
       .map((row) => row.join(','))
@@ -67,22 +145,14 @@ function TrackingPanel() {
     a.click();
   };
 
-  const handleAddNote = (log) => {
-    const note = prompt(`Enter your note for ${log.user}:`);
-    if (note) {
-      setUserNotes((prevNotes) => ({
-        ...prevNotes,
-        [log.user]: note,
-      }));
+  const toggleFavorite = (logId) => {
+    if (favorites.includes(logId)) {
+      // Retirer des favoris
+      setFavorites((prevFavorites) => prevFavorites.filter((id) => id !== logId));
+    } else {
+      // Ajouter aux favoris
+      setFavorites((prevFavorites) => [...prevFavorites, logId]);
     }
-  };
-
-  const handleDeleteNote = (user) => {
-    setUserNotes((prevNotes) => {
-      const updatedNotes = { ...prevNotes };
-      delete updatedNotes[user];
-      return updatedNotes;
-    });
   };
 
   const filteredLogs = logs
@@ -92,30 +162,19 @@ function TrackingPanel() {
       const end = endDate ? new Date(endDate) : null;
 
       return (
-        (!filterUser || log.user === filterUser) &&
-        (!filterAction || log.action.includes(filterAction)) &&
+        (!filterUser || log.nom === filterUser) &&
         (!start || logDate >= start) &&
         (!end || logDate <= end)
       );
     })
     .filter((log) =>
-      `${log.user} ${log.action} ${new Date(log.timestamp).toLocaleString()}`
+      `${log.nom} ${log.action} ${new Date(log.timestamp).toLocaleString()}`
         .toLowerCase()
         .includes(searchQuery.toLowerCase())
     );
 
-  // Calculate Summary Metrics
+  // Calculer les métriques de résumé
   const totalApiCalls = logs.length;
-
-  const userActivityCount = logs.reduce((acc, log) => {
-    acc[log.user] = (acc[log.user] || 0) + 1;
-    return acc;
-  }, {});
-
-  const mostActiveUser = Object.entries(userActivityCount).reduce(
-    (max, [user, count]) => (count > max.count ? { user, count } : max),
-    { user: 'N/A', count: 0 }
-  );
 
   const actionCount = logs.reduce((acc, log) => {
     acc[log.action] = (acc[log.action] || 0) + 1;
@@ -127,45 +186,53 @@ function TrackingPanel() {
     { action: 'N/A', count: 0 }
   );
 
-  const latestActivity = logs.length
-    ? new Date(logs[logs.length - 1].timestamp).toLocaleString()
+  // Trier les logs par timestamp pour trouver la dernière activité
+  const sortedLogs = [...logs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  const latestActivity = sortedLogs.length
+    ? new Date(sortedLogs[0].timestamp).toLocaleString()
     : 'No Activity Yet';
+
+  // Nombre total de notes ajoutées
+  const totalNotesAdded = logs.filter(log => log.note).length;
+
+  // Logs favoris
+  const favoriteLogs = logs.filter(log => favorites.includes(log.id));
 
   return (
     <div className="panel-container">
       <h2 className="panel-header">Tracking Panel</h2>
 
-      {/* Activity Summary */}
+      {/* Résumé d'activité */}
       <div className="summary-container">
-        <h3>Activity Summary</h3>
+        <h3>Résumé d'activité</h3>
         <ul>
-          <li>Total API Calls: {totalApiCalls}</li>
-          <li>Most Active User: {mostActiveUser.user} ({mostActiveUser.count} actions)</li>
-          <li>Most Used Action: {mostUsedAction.action} ({mostUsedAction.count} times)</li>
-          <li>Latest Activity: {latestActivity}</li>
+          <li>Total des appels API : {totalApiCalls}</li>
+          <li>Action la plus utilisée : {mostUsedAction.action} ({mostUsedAction.count} fois)</li>
+          <li>Dernière activité : {latestActivity}</li>
+          <li>Nombre total de notes ajoutées : {totalNotesAdded}</li>
         </ul>
       </div>
 
-      {/* Search Bar */}
+      {/* Barre de recherche */}
       <input
         type="text"
-        placeholder="Search logs..."
+        placeholder="Rechercher des logs..."
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         className="search-bar"
       />
 
-      {/* Filters */}
+      {/* Filtres */}
       <div className="filters">
         <label>
-          Filter by User:
+          Filtrer par utilisateur :
           <select
             value={filterUser}
             onChange={(e) => setFilterUser(e.target.value)}
             className="filter-input"
           >
-            <option value="">All Users</option>
-            {[...new Set(logs.map((log) => log.user))].map((user, index) => (
+            <option value="">Tous les utilisateurs</option>
+            {[...new Set(logs.map((log) => log.nom))].map((user, index) => (
               <option key={index} value={user}>
                 {user}
               </option>
@@ -173,17 +240,7 @@ function TrackingPanel() {
           </select>
         </label>
         <label>
-          Filter by Action:
-          <input
-            type="text"
-            value={filterAction}
-            onChange={(e) => setFilterAction(e.target.value)}
-            placeholder="Enter action"
-            className="filter-input"
-          />
-        </label>
-        <label>
-          Start Date:
+          Date de début :
           <input
             type="date"
             value={startDate}
@@ -192,7 +249,7 @@ function TrackingPanel() {
           />
         </label>
         <label>
-          End Date:
+          Date de fin :
           <input
             type="date"
             value={endDate}
@@ -202,68 +259,115 @@ function TrackingPanel() {
         </label>
       </div>
 
-      {/* Logs Table */}
-      {filteredLogs.length === 0 ? (
-        <p className="no-logs">No matching logs found.</p>
-      ) : (
-        <table className="table-style">
-          <thead>
-            <tr>
-              <th>User</th>
-              <th>Action</th>
-              <th>Timestamp</th>
-              <th>Note</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredLogs.map((log, index) => {
-              const logId = getLogId(log, index);
-              return (
-                <tr key={logId}>
-                  <td>{log.user}</td>
+      {/* Section des favoris */}
+      {favoriteLogs.length > 0 && (
+        <div className="favorites-section">
+          <h3>Favoris</h3>
+          <table className="table-style">
+            <thead>
+              <tr>
+                <th>Utilisateur</th>
+                <th>Action</th>
+                <th>Heure/Date</th>
+                <th>Note</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {favoriteLogs.map((log, index) => (
+                <tr key={log.id || index}>
+                  <td>{log.nom}</td>
                   <td>{log.action}</td>
                   <td>{new Date(log.timestamp).toLocaleString()}</td>
-                  <td>{userNotes[log.user] || 'No Note'}</td>
+                  <td>{log.note || 'Aucune note'}</td>
                   <td>
                     <div className="action-zone flex space-x-2">
                       <button
                         onClick={() => handleAddNote(log)}
                         className="btn-note"
                       >
-                        Add/Edit Note
+                        Ajouter/Modifier Note
                       </button>
-                      {userNotes[log.user] && (
+                      {log.note && (
                         <button
-                          onClick={() => handleDeleteNote(log.user)}
+                          onClick={() => handleDeleteNote(log)}
                           className="btn-delete-note"
                         >
-                          Delete Note
+                          Supprimer Note
                         </button>
                       )}
+                      <button
+                        onClick={() => toggleFavorite(log.id)}
+                        className="btn-favorite"
+                      >
+                        {favorites.includes(log.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                      </button>
                     </div>
                   </td>
                 </tr>
-              );
-            })}
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Tableau des logs */}
+      {filteredLogs.length === 0 ? (
+        <p className="no-logs">Aucun log correspondant trouvé.</p>
+      ) : (
+        <table className="table-style">
+          <thead>
+            <tr>
+              <th>Utilisateur</th>
+              <th>Action</th>
+              <th>Heure/Date</th>
+              <th>Note</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredLogs.map((log, index) => (
+              <tr key={log.id || index}>
+                <td>{log.nom}</td>
+                <td>{log.action}</td>
+                <td>{new Date(log.timestamp).toLocaleString()}</td>
+                <td>{log.note || 'Aucune note'}</td>
+                <td>
+                  <div className="action-zone flex space-x-2">
+                    <button
+                      onClick={() => handleAddNote(log)}
+                      className="btn-note"
+                    >
+                      Ajouter/Modifier Note
+                    </button>
+                    {log.note && (
+                      <button
+                        onClick={() => handleDeleteNote(log)}
+                        className="btn-delete-note"
+                      >
+                        Supprimer Note
+                      </button>
+                    )}
+                    <button
+                      onClick={() => toggleFavorite(log.id)}
+                      className="btn-favorite"
+                    >
+                      {favorites.includes(log.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       )}
 
       <div className="button-group">
-        <button onClick={handleClearLogs} className="btn-clear">
-          Clear Logs
-        </button>
-        {clearedLogs.length > 0 && (
-          <button onClick={handleUndoClear} className="btn-undo">
-            Undo Clear
-          </button>
-        )}
         <button onClick={exportToCSV} className="btn-export">
-          Export Logs
+          Exporter les logs
         </button>
         <button onClick={handleGoHome} className="btn-home">
-          Go Back to Home
+          Retour à l'accueil
         </button>
       </div>
     </div>
